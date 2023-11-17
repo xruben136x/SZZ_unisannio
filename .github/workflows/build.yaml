@@ -35,6 +35,3 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      - name: Convert Jupyter Notebooks to Python
-        run: |
-          jupyter nbconvert --to script --output-dir=src notebooks/*.ipynb
