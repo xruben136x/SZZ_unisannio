@@ -84,8 +84,15 @@ def get_all_candidate_commits(repo, parent_commit, changes_dict):
 
     return all_candidate_commits
 
+def print_candidate_commit(result):
+    for element, value in total_candidate_commit.items():
+        print('\nCommit ', element)
+        print('Commit candidati')
+        for com in value:
+            print(com)
 
-repo_name = "/Users/nik/Nicola/PythonProjects/Tensorflow"
+
+repo_name = "/Users/guido/Documents/Progetto/tensorflow"
 repo = git.Repo(repo_name)
 commits = repo.iter_commits()
 # retrieve bug fix commit
@@ -96,9 +103,9 @@ for commit in commits:
     if 'bug' in commit_message and ('fix' or 'fixed') in commit_message:
         bug_fix_commits.append(commit)
 
-total_candidate_commit = set()
+total_candidate_commit = {}
 # iteriamo su tutti i commit bug_fix
-for bug_fix_commit in bug_fix_commits:
+for bug_fix_commit in bug_fix_commits[0:5]:
     # verifichiamo se il commit ha effettivamente un parent da confrontare, altrimenti non possiamo fare il confronto
     if bug_fix_commit.parents is not None:
         # se non è nullo facciamo il diff
@@ -111,5 +118,6 @@ for bug_fix_commit in bug_fix_commits:
         # una volta fatto ciò la funzione all_candidate_commits trova i commit che hanno modificato quelle linee
         # l'ultima volta
         all_candidate_commits = get_all_candidate_commits(repo, parent_commit, changes_dict)
-        total_candidate_commit = total_candidate_commit.union(all_candidate_commits)
-print(total_candidate_commit)
+        total_candidate_commit[bug_fix_commit] = all_candidate_commits
+
+print_candidate_commit(total_candidate_commit)
