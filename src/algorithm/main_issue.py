@@ -8,7 +8,7 @@ import re
 # %%
 def get_diff(repo_path, commit_A, commit_B):
     repo = git.Repo(repo_path)
-    diff = repo.git.diff(commit_A.sha, commit_B.sha, '-U0', '--histogram')
+    diff = repo.git.diff(commit_A.hexsha, commit_B.hexsha, '-U0', '--histogram')
     return diff
 
 
@@ -74,7 +74,7 @@ def get_all_candidate_commits(repo, parent_commit, changes_dict):
     all_candidate_commits = set()
 
     for file_path, line_numbers in changes_dict.items():
-        blame_result = repo.git.blame(parent_commit.sha, file_path, "--line-porcelain")
+        blame_result = repo.git.blame(parent_commit.hexsha, file_path, "--line-porcelain")
         candidate_commits = get_candidate_commits(blame_result, file_path, changes_dict)
         all_candidate_commits = all_candidate_commits.union(candidate_commits)
 
@@ -87,9 +87,9 @@ def szz(path_to_repo, pull_request_data, issue_data):
     repo = git.Repo(path_to_repo)
     # supponiamo che le pull request contenute nel file siano già "closed"
     for pull_request in pull_request_data:
-
+        pull_request_number = pull_request['number']
         # supponiamo che l'sha del commit bug_fix sia l'ultimo della pull request, quello che ne indica la chiusura
-        commit_sha_bug_fix = pull_request['head']
+        commit_sha_bug_fix = pull_request['head']['sha']
         issue_opened_at = None
         # iteriamo su tutte le pull request del file e per ognuna cerchiamo la issue associata con una regex
         match = get_issue_numbers(pull_request['body'])
@@ -98,14 +98,17 @@ def szz(path_to_repo, pull_request_data, issue_data):
             # se troviamo l'espressione regolare che indica il riferimento dell'issue alla pull request allora la
             # assegnamo alla variabile issue number
             issue_number = int(match.group(1))
-
+            print(f'The pull request: {pull_request_number} refers to issue {issue_number}')
+            found = False
             for issue in issue_data:
                 # numero dell'issue nel file delle issue
                 issue_n = int(issue["number"])
                 # se il numero dell'issue della pull request matcha con una contenuta nel file allora prendi la data
                 # di creazione dell'issue
                 if issue_n == issue_number:
-                    print("Issue found!")
+                    found = True
+                    print(f"The issue {issue_number} is present in the issue file, so it is possible to search for "
+                          f"commits")
                     issue_opened_at = issue['created_at']
 
                     # andiamo a prendere il commit bug_fix avendo l'sha e il primo parent commit
@@ -137,9 +140,13 @@ def szz(path_to_repo, pull_request_data, issue_data):
                         # cioè che sicuramente non sono fix parziali
                         if commit_date_timestamp < timestamp_issue_opened_at:
                             suspect_commit_dict[commit_sha_bug_fix] = suspect_commit.append(commit_sha)
+            if not found:
+                print(f'The pull request: {pull_request_number} contains a reference to issue {issue_number} but '
+                      f'is not contained in the file that has been passed')
         else:
-            print("Issue not found")
+            print(f'The pull request: {pull_request_number} does not contain any reference to a issue')
 
+    print('\n\n\nThis is the list of every bug fix commits and the relative bug inducing commits')
     print(suspect_commit_dict)
 
 
