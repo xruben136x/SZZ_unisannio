@@ -56,6 +56,12 @@ def generate_changes_dict(diff_output):
     return result_dict
 
 
+def match_comment(line):
+    comment_pattern = re.compile(r'^\s*(#|//|<!--|/\*)|(?:.*?--!>|.*?\*/)\s*$')
+
+    return comment_pattern.match(line[1:])  # Ignora il primo carattere perchè le linee iniziano per '-'
+
+
 # Funzione per ottenere i numeri delle issue
 def is_fix_contained(issue_body):
     if not isinstance(issue_body, str):
@@ -93,7 +99,47 @@ def get_all_candidate_commits(repo, parent_commit, changes_dict):
     return all_candidate_commits
 
 
-def szz(path_to_repo, issue_data):
+def print_candidate_commit(total_candidate_commits):
+    for element, value in total_candidate_commits.items():
+        print('\nCommit ', element)
+        print('Commit candidati')
+        for com in value:
+            print(com)
+
+
+def szz(path_to_repo):
+    repo = git.Repo(path_to_repo)
+    commits = repo.iter_commits()
+    # retrieve bug fix commit
+    bug_fix_commits = []
+    for commit in commits:
+        commit_message = commit.message.lower()
+        if 'bug' in commit_message and ('fix' or 'fixed') in commit_message:
+            bug_fix_commits.append(commit)
+
+    total_candidate_commit = {}
+    # iteriamo su tutti i commit bug_fix
+    for bug_fix_commit in bug_fix_commits[0:5]:
+        # verifichiamo se il commit ha effettivamente un parent da confrontare, altrimenti non possiamo fare il
+        # confronto
+        if bug_fix_commit.parents is not None:
+            # se non è nullo facciamo il diff
+            parent_commit = bug_fix_commit.parents[0];
+            diff = get_diff(path_to_repo, bug_fix_commit, parent_commit)
+
+            # generiamo il dizionario che contiene come chiave i file cambiati e come valore i numeri di riga
+            # modificati, ed in particolare le linee che dal commit parent sono state eliminate e sostituite col fix
+            # del bug
+            changes_dict = generate_changes_dict(diff)
+            # una volta fatto ciò la funzione all_candidate_commits trova i commit che hanno modificato quelle linee
+            # l'ultima volta
+            all_candidate_commits = get_all_candidate_commits(repo, parent_commit, changes_dict)
+            total_candidate_commit[bug_fix_commit] = all_candidate_commits
+
+    print_candidate_commit(total_candidate_commit)
+
+
+def szz_issue(path_to_repo, issue_data):
     suspect_commit_dict = {}
     repo = git.Repo(path_to_repo)
 
@@ -160,25 +206,25 @@ def szz(path_to_repo, issue_data):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="""Insert repository name""")
+    parser.add_argument('--repo-path', type=str, help="The absolute path to a local copy of the git repository from "
+                                                      "where the git log is taken.")
 
-    parser = argparse.ArgumentParser(description="""Insert repository name
-                                                 """)
-    parser.add_argument('--repo-path', type=str,
-                        help="The absolute path to a local copy of the git repository from where the git log is taken.")
-
-    parser.add_argument('--issue', type=str,
-                        help="The absolute path to a local copy of a JSON file containing the issue bug report of the "
-                             "repository")
+    # Aggiungi l'opzione -i e specifica il parametro --issue
+    parser.add_argument('-i', '--issue', type=str, help="The absolute path to a local copy of a JSON file containing "
+                                                        "the issue bug report of the repository")
 
     args = parser.parse_args()
     path_to_repo = args.repo_path
-    issue_path = args.issue
 
-    try:
-        with open(issue_path) as issue_path_file:
-            issue_data = json.load(issue_path_file)
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON content: {e}")
-        issue_data = None
-
-    szz(path_to_repo, issue_data)
+    if args.issue:
+        # Se -i è presente, richiama la funzione szz_issue con il parametro --issue
+        try:
+            with open(args.issue) as issue_path_file:
+                issue_data = json.load(issue_path_file)
+            szz_issue(path_to_repo, issue_data)
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON content: {e}")
+    else:
+        # Altrimenti, richiama la funzione alternativa senza il parametro --issue
+        szz(path_to_repo)
