@@ -84,6 +84,7 @@ def get_all_candidate_commits(repo, parent_commit, changes_dict):
 
     return all_candidate_commits
 
+
 def print_candidate_commit(result):
     for element, value in total_candidate_commit.items():
         print('\nCommit ', element)
