@@ -12,6 +12,18 @@ def get_diff(repo_path, commit_A, commit_B):
     return diff
 
 
+def get_bug_fix_commits(repo):
+    commits = repo.iter_commits()
+    # retrieve bug fix commit
+    bug_fix_commits = []
+    for commit in commits:
+        commit_message = commit.message.lower()
+        match = is_fix_contained(commit_message)
+        if match:
+            bug_fix_commits.append(commit)
+    return bug_fix_commits
+
+
 def generate_changes_dict(diff_output):
     file_path_pattern = re.compile(r'^\+\+\+ b/(.*)$')
     line_number_pattern = re.compile(r'^@@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))? @@')
@@ -45,7 +57,7 @@ def generate_changes_dict(diff_output):
 
 
 # Funzione per ottenere i numeri delle issue
-def get_issue_numbers(issue_body):
+def is_fix_contained(issue_body):
     if not isinstance(issue_body, str):
         return None
 
@@ -81,70 +93,67 @@ def get_all_candidate_commits(repo, parent_commit, changes_dict):
     return all_candidate_commits
 
 
-def szz(path_to_repo, pull_request_data, issue_data):
+def szz(path_to_repo, issue_data):
     suspect_commit_dict = {}
-    suspect_commit = []
     repo = git.Repo(path_to_repo)
+
+    bug_fix_commits = get_bug_fix_commits(repo)
     # supponiamo che le pull request contenute nel file siano già "closed"
-    for pull_request in pull_request_data:
-        pull_request_number = pull_request['number']
+    for bug_fix_commit in bug_fix_commits:
+
+        pattern = re.compile(r'#(\d+)')
+        match = pattern.search(bug_fix_commit.message)
+        issue_number_in_bug_fix = int(match.group(1))
         # supponiamo che l'sha del commit bug_fix sia l'ultimo della pull request, quello che ne indica la chiusura
-        commit_sha_bug_fix = pull_request['head']['sha']
+        commit_sha_bug_fix = bug_fix_commit.hexsha
         issue_opened_at = None
-        # iteriamo su tutte le pull request del file e per ognuna cerchiamo la issue associata con una regex
-        match = get_issue_numbers(pull_request['body'])
+        print(f'The bug fix commit: {commit_sha_bug_fix} refers to issue {issue_number_in_bug_fix}')
+        found = False
+        for issue in issue_data:
+            # numero dell'issue nel file delle issue
+            issue_n = int(issue["number"])
+            # se il numero dell'issue della pull request matcha con una contenuta nel file allora prendi la data
+            # di creazione dell'issue
+            if issue_n == issue_number_in_bug_fix:
+                found = True
+                print(f"The issue {issue_number_in_bug_fix} is present in the issue file, so it is possible to search "
+                      f"for commits")
+                issue_opened_at = issue['created_at']
 
-        if match is not None:
-            # se troviamo l'espressione regolare che indica il riferimento dell'issue alla pull request allora la
-            # assegnamo alla variabile issue number
-            issue_number = int(match.group(1))
-            print(f'The pull request: {pull_request_number} refers to issue {issue_number}')
-            found = False
-            for issue in issue_data:
-                # numero dell'issue nel file delle issue
-                issue_n = int(issue["number"])
-                # se il numero dell'issue della pull request matcha con una contenuta nel file allora prendi la data
-                # di creazione dell'issue
-                if issue_n == issue_number:
-                    found = True
-                    print(f"The issue {issue_number} is present in the issue file, so it is possible to search for "
-                          f"commits")
-                    issue_opened_at = issue['created_at']
+                # andiamo a prendere il commit bug_fix avendo l'sha e il primo parent commit
+                parent_commit = bug_fix_commit.parents[0]
 
-                    # andiamo a prendere il commit bug_fix avendo l'sha e il primo parent commit
-                    commit_bug_fix = repo.commit(commit_sha_bug_fix)
-                    parent_commit = commit_bug_fix.parents[0]
+                # facciamo il diff tra i due per ottenere le linee di codice cambiate
+                diff = get_diff(path_to_repo, bug_fix_commit, parent_commit)
+                changes_dic = generate_changes_dict(diff)
 
-                    # facciamo il diff tra i due per ottenere le linee di codice cambiate
-                    diff = get_diff(path_to_repo, commit_bug_fix, parent_commit)
-                    changes_dic = generate_changes_dict(diff)
+                # effettuiamo blame su tutte le modifiche per ottenere i commit che hanno introdotto le linee
+                # modificate
+                all_candidate_commits = get_all_candidate_commits(repo, parent_commit, changes_dic)
+                suspect_commit = []
 
-                    # effettuiamo blame su tutte le modifiche per ottenere i commit che hanno introdotto le linee
-                    # modificate
-                    all_candidate_commits = get_all_candidate_commits(repo, parent_commit, changes_dic)
+                # Itera su ciascun commit candidato ad essere commit che ha introdotto il bug ottenuto dal blame
+                for commit_sha, author in all_candidate_commits:
+                    # per ogni commit candidato, estraiamo la data
+                    commit_bug = repo.commit(commit_sha)
+                    # Ottieni la data del commit come timestamp
+                    commit_date_timestamp = commit_bug.committed_date
 
-                    # Itera su ciascun commit candidato ad essere commit che ha introdotto il bug ottenuto dal blame
-                    for commit_sha, author in all_candidate_commits:
-                        # per ogni commit candidato, estraiamo la data
-                        commit = repo.commit(commit_sha)
-                        # Ottieni la data del commit come timestamp
-                        commit_date_timestamp = commit.committed_date
+                    # Converti la stringa ISO 8601 in un oggetto datetime
+                    issue_opened_at_datetime = datetime.fromisoformat(issue_opened_at.replace('Z', '+00:00'))
 
-                        # Converti la stringa ISO 8601 in un oggetto datetime
-                        issue_opened_at_datetime = datetime.fromisoformat(issue_opened_at.replace('Z', '+00:00'))
+                    # Estrai il timestamp Unix
+                    timestamp_issue_opened_at = int(issue_opened_at_datetime.timestamp())
 
-                        # Estrai il timestamp Unix
-                        timestamp_issue_opened_at = int(issue_opened_at_datetime.timestamp())
-
-                        # Stampa solo i commit effettuati prima della data di apertura dell'issue
-                        # cioè che sicuramente non sono fix parziali
-                        if commit_date_timestamp < timestamp_issue_opened_at:
-                            suspect_commit_dict[commit_sha_bug_fix] = suspect_commit.append(commit_sha)
-            if not found:
-                print(f'The pull request: {pull_request_number} contains a reference to issue {issue_number} but '
-                      f'is not contained in the file that has been passed')
-        else:
-            print(f'The pull request: {pull_request_number} does not contain any reference to a issue')
+                    # Stampa solo i commit effettuati prima della data di apertura dell'issue
+                    # cioè che sicuramente non sono fix parziali
+                    if commit_date_timestamp < timestamp_issue_opened_at:
+                        suspect_commit.append((commit_sha, commit_bug.author.name))
+                suspect_commit_dict[commit_sha_bug_fix] = suspect_commit
+        if not found:
+            print(
+                f'The bug_fix_commit: {commit_sha_bug_fix} contains a reference to issue {issue_number_in_bug_fix} but'
+                f'is not contained in the file that has been passed')
 
     print('\n\n\nThis is the list of every bug fix commits and the relative bug inducing commits')
     print(suspect_commit_dict)
@@ -157,25 +166,13 @@ if __name__ == '__main__':
     parser.add_argument('--repo-path', type=str,
                         help="The absolute path to a local copy of the git repository from where the git log is taken.")
 
-    parser.add_argument('--pull-request', type=str,
-                        help="The absolute path to a local copy of a JSON file containing the pull request of the "
-                             "repository")
-
     parser.add_argument('--issue', type=str,
                         help="The absolute path to a local copy of a JSON file containing the issue bug report of the "
                              "repository")
 
     args = parser.parse_args()
     path_to_repo = args.repo_path
-    pull_request_path = args.pull_request
     issue_path = args.issue
-
-    try:
-        with open(pull_request_path) as pull_request_path_file:
-            pull_request_data = json.load(pull_request_path_file)
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON content: {e}")
-        pull_request_data = None
 
     try:
         with open(issue_path) as issue_path_file:
@@ -184,4 +181,4 @@ if __name__ == '__main__':
         print(f"Error decoding JSON content: {e}")
         issue_data = None
 
-    szz(path_to_repo, pull_request_data, issue_data)
+    szz(path_to_repo, issue_data)
