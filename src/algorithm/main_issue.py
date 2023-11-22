@@ -66,11 +66,11 @@ def match_comment(line):
 # Funzione per ottenere i numeri delle issue
 def is_fix_contained(issue_body):
     if not isinstance(issue_body, str):
-        return None
+        return False
 
     pattern = re.compile(r'#(\d+)')
     match = pattern.search(issue_body)
-    return match
+    return bool(match)
 
 
 def get_candidate_commits(blame_result, file_path, changes_dict):
@@ -117,7 +117,7 @@ def get_bug_fix_commits_for_szz(repo):
 
     return bug_fix_commits
 
-def operations(repo, bug_fix_commit):
+def search_candidate_commit_szz(repo, bug_fix_commit):
     all_candidate_commits =[]
     # verifichiamo se il commit ha effettivamente un parent da confrontare, altrimenti non possiamo fare il
     # confronto
@@ -143,7 +143,7 @@ def szz(repo):
     # iteriamo su tutti i commit bug_fix
     for bug_fix_commit in bug_fix_commits[0:5]:
         # chiamiamo la funzione che fa diff, blame e ottiene i commit candidati
-        total_candidate_commit[bug_fix_commit] = operations(repo, bug_fix_commit)
+        total_candidate_commit[bug_fix_commit] = search_candidate_commit_szz(repo, bug_fix_commit)
 
     print_candidate_commit(total_candidate_commit)
 
@@ -154,7 +154,7 @@ def extract_issue_number(commit_message):
         return int(match.group(1))
     return None
 
-def extract_and_compare_timestamp(all_candidate_commits, issue_opened_at):
+def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at):
     suspect_commit = []
 
     # Itera su ciascun commit candidato ad essere commit che ha introdotto il bug ottenuto dal blame
@@ -201,9 +201,9 @@ def szz_issue(repo, issue_data):
                 issue_opened_at = issue['created_at']
 
                 # chiamiamo la funzione che fa diff, blame e ottiene i commit candidati
-                all_candidate_commits = operations(repo, bug_fix_commit)
+                all_candidate_commits = search_candidate_commit_szz(repo, bug_fix_commit)
 
-                suspect_commit_dict[commit_sha_bug_fix] = extract_and_compare_timestamp(all_candidate_commits, issue_opened_at)
+                suspect_commit_dict[commit_sha_bug_fix] = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at)
         if not found:
             print(f'The bug_fix_commit: {commit_sha_bug_fix} contains a reference to issue {issue_number_in_bug_fix} but'
                 f'is not contained in the file that has been passed')
