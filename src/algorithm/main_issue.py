@@ -4,6 +4,15 @@ from datetime import datetime
 import git
 import re
 
+def load_regex_config(config_path='../../regex_config.txt'):
+    # Apre il file specificato e restituisce il contenuto come stringa, rimuovendo spazi bianchi in eccesso.
+    try:
+        with open(config_path, 'r') as config_file:
+            return config_file.read().strip()
+    except FileNotFoundError as e:
+        # Stampa un messaggio di errore nel caso in cui il file non venga trovato.
+        print(f"Error loading regex config: {e}")
+        return None  # Ritorna None in caso di errore
 
 # %%
 def get_diff(repo, commit_A, commit_B):
@@ -11,13 +20,12 @@ def get_diff(repo, commit_A, commit_B):
     return diff
 
 
-def get_bug_fix_commits_szz_issue(repo):
+def get_bug_fix_commits_szz_issue(repo, issue_pattern):
     commits = repo.iter_commits()
-    # retrieve bug fix commit
     bug_fix_commits = []
     for commit in commits:
         commit_message = commit.message.lower()
-        match = is_fix_contained(commit_message)
+        match = is_fix_contained(commit_message, issue_pattern)
         if match:
             bug_fix_commits.append(commit)
     return bug_fix_commits
@@ -64,12 +72,11 @@ def match_comment(line):
 
 
 # Funzione per ottenere i numeri delle issue
-def is_fix_contained(issue_body):
-    if not isinstance(issue_body, str):
+def is_fix_contained(commit_message, issue_pattern):
+    if not isinstance(commit_message, str):
         return False
 
-    pattern = re.compile(r'#(\d+)')
-    match = pattern.search(issue_body)
+    match = issue_pattern.search(commit_message)
     return bool(match)
 
 
@@ -147,14 +154,15 @@ def szz(repo):
 
     print_candidate_commit(total_candidate_commit)
 
-def extract_issue_number(commit_message):
-    pattern = re.compile(r'#(\d+)')
+def extract_issue_number(commit_message, regex_pattern):
+    # Utilizza il pattern di espressione regolare per cercare il numero dell'issue nel messaggio del commit.
+    pattern = re.compile(regex_pattern)
     match = pattern.search(commit_message)
     if match:
         return int(match.group(1))
     return None
 
-def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at):
+def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at, repo):
     suspect_commit = []
 
     # Itera su ciascun commit candidato ad essere commit che ha introdotto il bug ottenuto dal blame
@@ -177,39 +185,35 @@ def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at):
 
     return suspect_commit
 
-def szz_issue(repo, issue_data):
+def szz_issue(repo, issue_data, issue_pattern):
     suspect_commit_dict = {}
 
-    bug_fix_commits = get_bug_fix_commits_szz_issue(repo)
+    bug_fix_commits = get_bug_fix_commits_szz_issue(repo, issue_pattern)
     for bug_fix_commit in bug_fix_commits:
-
-        issue_number_in_bug_fix = extract_issue_number(bug_fix_commit.message)
-        # supponiamo che l'sha del commit bug_fix sia l'ultimo della pull request, quello che ne indica la chiusura
+        issue_number_in_bug_fix = extract_issue_number(bug_fix_commit.message, issue_pattern)
         commit_sha_bug_fix = bug_fix_commit.hexsha
 
         print(f'The bug fix commit: {commit_sha_bug_fix} refers to issue {issue_number_in_bug_fix}')
         found = False
+
         for issue in issue_data:
-            # numero dell'issue nel file delle issue
             issue_n = int(issue["number"])
-            # se il numero dell'issue della pull request matcha con una contenuta nel file allora prendi la data
-            # di creazione dell'issue
+
             if issue_n == issue_number_in_bug_fix:
                 found = True
                 print(f"The issue {issue_number_in_bug_fix} is present in the issue file, so it is possible to search "
                       f"for commits")
                 issue_opened_at = issue['created_at']
-
-                # chiamiamo la funzione che fa diff, blame e ottiene i commit candidati
                 all_candidate_commits = search_candidate_commit_szz(repo, bug_fix_commit)
-
-                suspect_commit_dict[commit_sha_bug_fix] = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at)
+                suspect_commit_dict[commit_sha_bug_fix] = extract_commit_by_timestamp(all_candidate_commits,
+                                                                                        issue_opened_at, repo)
         if not found:
-            print(f'The bug_fix_commit: {commit_sha_bug_fix} contains a reference to issue {issue_number_in_bug_fix} but'
-                f'is not contained in the file that has been passed')
+            print(f'The bug_fix_commit: {commit_sha_bug_fix} contains a reference to issue {issue_number_in_bug_fix} '
+                  f'but is not contained in the file that has been passed')
 
     print('\n\n\nThis is the list of every bug fix commits and the relative bug inducing commits')
     print_candidate_commit(suspect_commit_dict)
+
 
 
 if __name__ == '__main__':
@@ -223,17 +227,21 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     path_to_repo = args.repo_path
-
     repo = git.Repo(path_to_repo)
 
-    if args.issue:
-        # Se -i è presente, richiama la funzione szz_issue con il parametro --issue
-        try:
-            with open(args.issue) as issue_path_file:
-                issue_data = json.load(issue_path_file)
-            szz_issue(repo, issue_data)
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON content: {e}")
+    issue_pattern_str = load_regex_config()
+
+    if issue_pattern_str is not None:
+        issue_pattern = re.compile(issue_pattern_str)
+
+        if args.issue:
+            try:
+                with open(args.issue) as issue_path_file:
+                    issue_data = json.load(issue_path_file)
+                szz_issue(repo, issue_data, issue_pattern)
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON content: {e}")
+        else:
+            szz(repo)
     else:
-        # Altrimenti, richiama la funzione alternativa senza il parametro --issue
-        szz(repo)
+        print("No valid issue pattern found. Please check the regex_config.txt file.")
