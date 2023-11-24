@@ -5,17 +5,6 @@ import git
 import re
 
 
-# %%
-def load_regex_config(config_path='../../regex_config.txt'):
-    # Apre il file specificato e restituisce il contenuto come stringa, rimuovendo spazi bianchi in eccesso.
-    try:
-        with open(config_path, 'r') as config_file:
-            return config_file.read().strip()
-    except FileNotFoundError as e:
-        # Stampa un messaggio di errore nel caso in cui il file non venga trovato.
-        print(f"Error loading regex config: {e}")
-        return None  # Ritorna None in caso di errore
-
 def get_diff(commit_a, commit_b):
     diff = repo.git.diff(commit_a.hexsha, commit_b.hexsha, '-U0', '--histogram')
     return diff
@@ -31,13 +20,8 @@ def load_regex_config(config_path='../../regex_config.txt'):
         print(f"Error loading regex config: {e}")
         return None  # Ritorna None in caso di errore
 
-# %%
-def get_diff(commit_A, commit_B):
-    diff = repo.git.diff(commit_A.hexsha, commit_B.hexsha, '-U0', '--histogram')
-    return diff
 
-
-def get_bug_fix_commits_szz_issue(issue_pattern):
+def get_bug_fix_commits_szz_issue():
     commits = repo.iter_commits()
     bug_fix_commits = []
     for commit in commits:
@@ -213,7 +197,7 @@ def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at):
 
 
 def szz():
-    bug_fix_commits = get_bug_fix_commits_for_szz(repo)
+    bug_fix_commits = get_bug_fix_commits_for_szz()
 
     total_candidate_commit = {}
     # iteriamo su tutti i commit bug_fix
@@ -227,7 +211,7 @@ def szz():
 def szz_issue():
     suspect_commit_dict = {}
 
-    bug_fix_commits = get_bug_fix_commits_szz_issue(issue_pattern)
+    bug_fix_commits = get_bug_fix_commits_szz_issue()
     for bug_fix_commit in bug_fix_commits:
         issue_number_in_bug_fix = extract_issue_number(bug_fix_commit.message, issue_pattern)
         commit_sha_bug_fix = bug_fix_commit.hexsha
@@ -244,7 +228,8 @@ def szz_issue():
                       f"for commits")
                 issue_opened_at = issue['created_at']
                 all_candidate_commits = search_candidate_commit_szz(bug_fix_commit)
-                suspect_commit_dict[commit_sha_bug_fix] = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at)
+                suspect_commit_dict[commit_sha_bug_fix] = extract_commit_by_timestamp(all_candidate_commits,
+                                                                                      issue_opened_at)
         if not found:
             print(f'The bug_fix_commit: {commit_sha_bug_fix} contains a reference to issue {issue_number_in_bug_fix} '
                   f'but is not contained in the file that has been passed')
@@ -285,4 +270,3 @@ if __name__ == '__main__':
             szz()
     else:
         print("No valid issue pattern found. Please check the regex_config.txt file.")
-
