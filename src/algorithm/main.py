@@ -4,12 +4,6 @@ from datetime import datetime
 import git
 import re
 
-
-def get_diff(commit_a, commit_b):
-    diff = repo.git.diff(commit_a.hexsha, commit_b.hexsha, '-U0', '--histogram')
-    return diff
-
-
 def load_regex_config(config_path='../../regex_config.txt'):
     # Apre il file specificato e restituisce il contenuto come stringa, rimuovendo spazi bianchi in eccesso.
     try:
@@ -133,7 +127,7 @@ def print_candidate_commit(total_candidate_commits):
             print(com)
 
 
-def get_bug_fix_commits_for_szz():
+def get_bug_fix_commits_for_szz(repo):
     commits = repo.iter_commits()
     bug_fix_commits = []
     for commit in commits:
@@ -150,7 +144,7 @@ def search_candidate_commit_szz(bug_fix_commit):
     # confronto
     if bug_fix_commit.parents is not None:
         parent_commit = bug_fix_commit.parents[0]
-        diff = get_diff(bug_fix_commit, parent_commit)
+        diff = repo.git.diff(bug_fix_commit.hexsha, parent_commit.hexsha, '-U0', '--histogram')
 
         # generiamo il dizionario che contiene come chiave i file cambiati e come valore i numeri di riga
         # modificati, ed in particolare le linee che dal commit parent sono state eliminate e sostituite col fix
@@ -197,7 +191,7 @@ def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at):
 
 
 def szz():
-    bug_fix_commits = get_bug_fix_commits_for_szz()
+    bug_fix_commits = get_bug_fix_commits_for_szz(repo)
 
     total_candidate_commit = {}
     # iteriamo su tutti i commit bug_fix
@@ -237,6 +231,8 @@ def szz_issue():
     print('\n\n\nThis is the list of every bug fix commits and the relative bug inducing commits')
     print_candidate_commit(suspect_commit_dict)
 
+args = None
+repo = None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Insert repository name""")
