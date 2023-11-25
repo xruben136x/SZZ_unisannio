@@ -1,6 +1,9 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from SZZ_unisannio.src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, get_all_candidate_commits  # Assicurati di sostituire 'your_script' con il nome reale del tuo script
+import re
+from SZZ_unisannio.src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, \
+    get_all_candidate_commits, extract_issue_number, match_comment, is_fix_contained   # Assicurati di sostituire 'your_script' con il nome reale del tuo script
+
 
 class UnitTest(unittest.TestCase):
 
@@ -124,7 +127,7 @@ index 67468fef9b5..00f1d5ebe98 100644
         self.assertEqual(changes_dict, expected_output)
 
     def test_generate_changes_dict_diff_output_empty(self):
-            # Esempio di output del diff
+        # Esempio di output del diff
         diff_output = ""
         # Esempio di output atteso dal tuo codice
         expected_output = {}
@@ -166,16 +169,16 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         file_path = 'third_party/xla/xla/service/gpu/buffer_sharing.cc'
         changes_dict = {'third_party/xla/xla/service/gpu/buffer_sharing.cc': [1, 35]}
 
-        expected_commits = {('85ac1c6ddc93d4f53ff5b2c5c1c7bac7a8a44030', 'Sergey Kozub'), ("f4529e80ab30a51207901b74b438980ac8b3ceaf", "Adrian Kuegel"), }
+        expected_commits = {('85ac1c6ddc93d4f53ff5b2c5c1c7bac7a8a44030', 'Sergey Kozub'),
+                            ("f4529e80ab30a51207901b74b438980ac8b3ceaf", "Adrian Kuegel"), }
 
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    #il mock con side_effect=lambda x, y: True semplifica
+    # il mock con side_effect=lambda x, y: True semplifica
     # il confronto facendo sì che restituisca sempre True, ovvero indicando che il primo commit è sempre meno recente del secondo.
     @patch('SZZ_unisannio.src.algorithm.main.commit_is_more_recent', side_effect=lambda x, y: True)
     def test_get_candidate_commits_with_changes_and_recent_flag(self, mock_commit_is_more_recent):
-
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
 author Adrian Kuegel
@@ -302,7 +305,6 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-
     @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
     @patch('SZZ_unisannio.src.algorithm.main.get_candidate_commits',
            side_effect=[
@@ -310,7 +312,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
                {('commit2', 'author2')}  # Risultato per 'file2'
            ])
     def test_get_all_candidate_commits_scenario1(self, mock_get_candidate_commits, mock_repo):
-        #in questo scenario la chiamata get_candidate_commit() ha restituito commit diversi per i due file
+        # in questo scenario la chiamata get_candidate_commit() ha restituito commit diversi per i due file
         parent_commit = MagicMock()
         changes_dict = {'file1': [1, 2], 'file2': [3, 4]}
 
@@ -326,7 +328,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
                {('commit1', 'author1')}  # Risultato per 'file2'
            ])
     def test_get_all_candidate_commits_scenario2(self, mock_get_candidate_commits, mock_repo):
-        #in questo scenario la chiamata get_candidate_commit() ha restituito lo stesso commit per i due file
+        # in questo scenario la chiamata get_candidate_commit() ha restituito lo stesso commit per i due file
         parent_commit = MagicMock()
         changes_dict = {'file1': [1, 2], 'file2': [3, 4]}
 
@@ -350,6 +352,82 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
 
         expected_commits = set()
         self.assertEqual(result, expected_commits)
+    def test_extract_issue_number_found(self):
+        result = extract_issue_number("Fixes issue #42", r'(\d+)')
+        self.assertEqual(result, 42)
+
+    def test_extract_issue_number_not_found(self):
+        result = extract_issue_number("Fixes issue #", r'(\d+)')
+        self.assertIsNone(result)
+
+    def test_extract_issue_number_non_numeric(self):
+        result = extract_issue_number("Fixes issue non_numeric", r'(\d+)')
+        self.assertIsNone(result)
+
+    def test_extract_issue_number_invalid_match(self):
+        result = extract_issue_number("Fixes issue without a number", r'(\d+)')
+        self.assertIsNone(result)
+
+    def test_match_single_line_double_slash(self):
+        line = " // This is a comment"
+        result = match_comment(line)
+        self.assertIsNotNone(result, "Expected a comment, but got None.")
+
+    def test_match_multiline_single_quotes(self):
+        line = " '''This is a multiline\ncomment'''"
+        result = match_comment(line)
+        self.assertIsNotNone(result, "Expected a comment, but got None.")
+
+    def test_match_multiline_double_quotes(self):
+        line = ' """This is another\nmultiline comment"""'
+        result = match_comment(line)
+        self.assertIsNotNone(result, "Expected a comment, but got None.")
+
+    def test_match_comment_with_leading_spaces(self):
+        line = "   # Comment with leading spaces"
+        result = match_comment(line)
+        self.assertIsNotNone(result, "Expected a comment, but got None.")
+
+    def test_not_match_diff_output_line(self):
+        line = "+ This is an added line from diff output"
+        result = match_comment(line)
+        self.assertIsNone(result, "Expected None for diff output line, but got a result.")
+
+    def test_issue_pattern_found(self):
+        commit_message = "Fixed issue #123"
+        issue_pattern = re.compile(r'#(\d+)', re.IGNORECASE)
+        result = is_fix_contained(commit_message, issue_pattern)
+        self.assertTrue(result)
+
+    def test_issue_pattern_not_found(self):
+        commit_message = "This commit does not reference any issue."
+        issue_pattern = re.compile(r'#(\d+)', re.IGNORECASE)
+        result = is_fix_contained(commit_message, issue_pattern)
+        self.assertFalse(result)
+
+    def test_non_string_input(self):
+        commit_message = None
+        issue_pattern = re.compile(r'#(\d+)', re.IGNORECASE)
+        result = is_fix_contained(commit_message, issue_pattern)
+        self.assertFalse(result)
+
+    def different_char_sensitive_matching(self):
+        commit_message = "Fixed Issue -123"
+        issue_pattern = re.compile(r'#(\d+)')
+        result = is_fix_contained(commit_message, issue_pattern)
+        self.assertFalse(result)
+
+    def test_case_insensitive_matching(self):
+        commit_message = "Fixed Issue #123"
+        issue_pattern = re.compile(r'issue #(\d+)', re.IGNORECASE)
+        result = is_fix_contained(commit_message, issue_pattern)
+        self.assertTrue(result)
+
+    def test_case_sensitive_matching(self):
+        commit_message = "fixed issue #123"
+        issue_pattern = re.compile(r'issue #(\d+)', re.IGNORECASE)
+        result = is_fix_contained(commit_message, issue_pattern)
+        self.assertTrue(result)
 
 
 if __name__ == '__main__':
