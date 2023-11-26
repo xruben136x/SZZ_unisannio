@@ -1,16 +1,14 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 import re
 from SZZ_unisannio.src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, \
-    get_all_candidate_commits, extract_issue_number, match_comment, is_fix_contained   # Assicurati di sostituire 'your_script' con il nome reale del tuo script
+    get_all_candidate_commits, search_candidate_commit_szz, print_candidate_commit, szz, extract_issue_number, match_comment, is_fix_contained   # Assicurati di sostituire 'your_script' con il nome reale del tuo script
 
 
 class UnitTest(unittest.TestCase):
 
-    def test_get_bug_fix_commits_for_szz_with_bug_and_fix(self):
-        # Crea un mock per il repository
-        mock_repo = MagicMock()
-
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_for_szz_with_bug_and_fix(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
             MagicMock(message="Fixing a bug"),
@@ -22,15 +20,13 @@ class UnitTest(unittest.TestCase):
         mock_repo.iter_commits.return_value = mock_commits
 
         # Esegui la funzione di test
-        bug_fix_commits = get_bug_fix_commits_for_szz(mock_repo)
+        bug_fix_commits = get_bug_fix_commits_for_szz()
 
         # Verifica che la funzione restituisca i commit corretti
         self.assertEqual(bug_fix_commits, [mock_commits[0], mock_commits[2]])
 
-    def test_get_bug_fix_commits_for_szz_with_bug_and_fixed(self):
-        # Crea un mock per il repository
-        mock_repo = MagicMock()
-
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_for_szz_with_bug_and_fixed(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
             MagicMock(message="Fixed a bug"),
@@ -42,15 +38,13 @@ class UnitTest(unittest.TestCase):
         mock_repo.iter_commits.return_value = mock_commits
 
         # Esegui la funzione di test
-        bug_fix_commits = get_bug_fix_commits_for_szz(mock_repo)
+        bug_fix_commits = get_bug_fix_commits_for_szz()
 
         # Verifica che la funzione restituisca i commit corretti
         self.assertEqual(bug_fix_commits, [mock_commits[0], mock_commits[2]])
 
-    def test_get_bug_fix_commits_for_szz_with_fix_only(self):
-        # Crea un mock per il repository
-        mock_repo = MagicMock()
-
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_for_szz_with_fix_only(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
             MagicMock(message="Fix #123456"),
@@ -62,15 +56,13 @@ class UnitTest(unittest.TestCase):
         mock_repo.iter_commits.return_value = mock_commits
 
         # Esegui la funzione di test
-        bug_fix_commits = get_bug_fix_commits_for_szz(mock_repo)
+        bug_fix_commits = get_bug_fix_commits_for_szz()
 
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    def test_get_bug_fix_commits_for_szz_with_bug_only(self):
-        # Crea un mock per il repository
-        mock_repo = MagicMock()
-
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_for_szz_with_bug_only(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
             MagicMock(message="Bug #123456"),
@@ -82,15 +74,13 @@ class UnitTest(unittest.TestCase):
         mock_repo.iter_commits.return_value = mock_commits
 
         # Esegui la funzione di test
-        bug_fix_commits = get_bug_fix_commits_for_szz(mock_repo)
+        bug_fix_commits = get_bug_fix_commits_for_szz()
 
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    def test_get_bug_fix_commits_for_szz_with_empty_message(self):
-        # Crea un mock per il repository
-        mock_repo = MagicMock()
-
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_for_szz_with_empty_message(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
             MagicMock(message=""),
@@ -102,7 +92,7 @@ class UnitTest(unittest.TestCase):
         mock_repo.iter_commits.return_value = mock_commits
 
         # Esegui la funzione di test
-        bug_fix_commits = get_bug_fix_commits_for_szz(mock_repo)
+        bug_fix_commits = get_bug_fix_commits_for_szz()
 
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
@@ -352,6 +342,126 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
 
         expected_commits = set()
         self.assertEqual(result, expected_commits)
+
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('SZZ_unisannio.src.algorithm.main.generate_changes_dict', autospec=True)
+    @patch('SZZ_unisannio.src.algorithm.main.get_all_candidate_commits', autospec=True)
+    def test_search_candidate_commit_szz_with_parent_commit(self, mock_get_all_candidate_commits, mock_generate_changes_dict, mock_repo):
+        # Crea un mock per il bug_fix_commit
+        bug_fix_commit = MagicMock()
+        bug_fix_commit.parents = [MagicMock()]  # Assicurati che ci sia almeno un parent
+
+        # Configura il comportamento desiderato per i mock
+        mock_diff = MagicMock()
+        mock_repo.git.diff.return_value = mock_diff
+        mock_generate_changes_dict.return_value = {'file1': [1, 2, 3], 'file2': [4, 5]}
+        mock_get_all_candidate_commits.return_value = {('commit1', 'author1'), ('commit2', 'author2')}
+
+        # Esegui la funzione di test
+        result = search_candidate_commit_szz(bug_fix_commit)
+
+        # Verifica che la funzione restituisca i risultati attesi
+        self.assertEqual(result, {('commit1', 'author1'), ('commit2', 'author2')})
+
+        # Verifica le chiamate ai metodi
+        mock_repo.git.diff.assert_called_with(bug_fix_commit.hexsha, bug_fix_commit.parents[0].hexsha, '-U0',
+                                              '--histogram')
+        mock_generate_changes_dict.assert_called_with(mock_diff)
+        mock_get_all_candidate_commits.assert_called_with(bug_fix_commit.parents[0],
+                                                          {'file1': [1, 2, 3], 'file2': [4, 5]})
+
+    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('SZZ_unisannio.src.algorithm.main.generate_changes_dict', autospec=True)
+    @patch('SZZ_unisannio.src.algorithm.main.get_all_candidate_commits', autospec=True)
+    def test_search_candidate_commit_szz_without_parent_commit(self, mock_get_all_candidate_commits,
+                                                               mock_generate_changes_dict, mock_repo):
+        bug_fix_commit = MagicMock()
+        bug_fix_commit.parents = None  # Nessun parent commit
+
+        # Esegui la funzione di test
+        result = search_candidate_commit_szz(bug_fix_commit)
+
+        # Verifica che la funzione restituisca una lista vuota senza chiamare altri metodi
+        self.assertEqual(result, [])
+        mock_repo.git.diff.assert_not_called()
+        mock_generate_changes_dict.assert_not_called()
+        mock_get_all_candidate_commits.assert_not_called()
+
+    @patch('builtins.print')  # Mock la funzione print built-in
+    def test_print_candidate_commit_not_empty(self, mock_print):
+        # Configura dati di esempio
+        mock_bug_fix_commit1 = MagicMock()
+        mock_bug_fix_commit2 = MagicMock()
+        mock_bug_fix_commit3 = MagicMock()
+
+        total_candidate_commits = {
+            mock_bug_fix_commit1: [('commit1', 'author1'), ('commit2', 'author2')],
+            mock_bug_fix_commit2: [('commit3', 'author3'), ('commit4', 'author4')],
+            mock_bug_fix_commit3: [('commit5', 'author5'), ('commit6', 'author6')],
+        }
+
+        # Esegui la funzione di test
+        print_candidate_commit(total_candidate_commits)
+
+        # Cattura l'output effettivo della funzione print
+        captured_output = [call[0] for call in mock_print.call_args_list]
+
+        # Output desiderato
+        expected_output = [
+            ('\nCommit ', mock_bug_fix_commit1),
+            ('Commit candidati',),
+            (('commit1', 'author1'),),
+            (('commit2', 'author2'),),
+            ('\nCommit ', mock_bug_fix_commit2),
+            ('Commit candidati',),
+            (('commit3', 'author3'),),
+            (('commit4', 'author4'),),
+            ('\nCommit ', mock_bug_fix_commit3),
+            ('Commit candidati',),
+            (('commit5', 'author5'),),
+            (('commit6', 'author6'),),
+        ]
+
+        # Verifica che l'output effettivo sia uguale all'output desiderato
+        self.assertEqual(captured_output, expected_output)
+
+    @patch('builtins.print')  # Mock la funzione print built-in
+    def test_print_candidate_commit_empty(self, mock_print):
+
+        total_candidate_commits = {}
+
+        # Esegui la funzione di test
+        print_candidate_commit(total_candidate_commits)
+
+        # Cattura l'output effettivo della funzione print
+        captured_output = [call[0] for call in mock_print.call_args_list]
+
+        # Output desiderato
+        expected_output = []
+
+        # Verifica che l'output effettivo sia uguale all'output desiderato
+        self.assertEqual(captured_output, expected_output)
+
+    @patch('SZZ_unisannio.src.algorithm.main.get_bug_fix_commits_for_szz')
+    @patch('SZZ_unisannio.src.algorithm.main.search_candidate_commit_szz')
+    @patch('SZZ_unisannio.src.algorithm.main.print_candidate_commit')
+    def test_szz_function(self, mock_print, mock_search, mock_get_bug_fix_commits):
+        # Configurare il comportamento del mock per ogni funzione
+        mock_get_bug_fix_commits.return_value = ['commit1', 'commit2', 'commit3', 'commit4', 'commit5']
+        mock_search.return_value = 'mock_candidate_commit'
+
+        szz()
+
+        # Verifica che get_bug_fix_commits_for_szz venga chiamato una volta
+        mock_get_bug_fix_commits.assert_called_once_with()
+
+        # Verifica che search_candidate_commit_szz venga chiamato 5 volte con i primi 5 commit di bug_fix_commits
+        expected_calls = [call('commit1'), call('commit2'), call('commit3'), call('commit4'), call('commit5')]
+        mock_search.assert_has_calls(expected_calls)
+
+        # Verifica che print_candidate_commit venga chiamato una volta
+        mock_print.assert_called_once()
+
     def test_extract_issue_number_found(self):
         result = extract_issue_number("Fixes issue #42", r'(\d+)')
         self.assertEqual(result, 42)

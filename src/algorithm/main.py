@@ -127,7 +127,7 @@ def print_candidate_commit(total_candidate_commits):
             print(com)
 
 
-def get_bug_fix_commits_for_szz(repo):
+def get_bug_fix_commits_for_szz():
     commits = repo.iter_commits()
     bug_fix_commits = []
     for commit in commits:
@@ -191,7 +191,7 @@ def extract_commit_by_timestamp(all_candidate_commits, issue_opened_at):
 
 
 def szz():
-    bug_fix_commits = get_bug_fix_commits_for_szz(repo)
+    bug_fix_commits = get_bug_fix_commits_for_szz()
 
     total_candidate_commit = {}
     # iteriamo su tutti i commit bug_fix
