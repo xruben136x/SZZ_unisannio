@@ -1,13 +1,17 @@
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch, call, mock_open
 import re
-from SZZ_unisannio.src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, \
-    get_all_candidate_commits, search_candidate_commit_szz, print_candidate_commit, szz, extract_issue_number, match_comment, is_fix_contained   # Assicurati di sostituire 'your_script' con il nome reale del tuo script
+from src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, \
+    get_all_candidate_commits, extract_issue_number, match_comment, is_fix_contained, \
+    get_bug_fix_commits_szz_issue, \
+    search_candidate_commit_szz, \
+    print_candidate_commit, szz, \
+    load_regex_config  # Assicurati di sostituire 'your_script' con il nome reale del tuo script
 
 
 class UnitTest(unittest.TestCase):
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_bug_and_fix(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -25,7 +29,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca i commit corretti
         self.assertEqual(bug_fix_commits, [mock_commits[0], mock_commits[2]])
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_bug_and_fixed(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -43,7 +47,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca i commit corretti
         self.assertEqual(bug_fix_commits, [mock_commits[0], mock_commits[2]])
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_fix_only(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -61,7 +65,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_bug_only(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -79,7 +83,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_empty_message(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -96,6 +100,40 @@ class UnitTest(unittest.TestCase):
 
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
+
+    @patch('src.algorithm.main.is_fix_contained', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_szz_issue_true(self, mock_repo, mock_is_fix_contained):
+        # Configura il mock del repository
+        mock_commits = [
+            MagicMock(message="Fixing a bug"),
+            MagicMock(message="Adding a new feature"),
+            MagicMock(message="Fix: Another bug in the code")
+        ]
+        mock_repo.iter_commits.return_value = mock_commits
+        mock_is_fix_contained.return_value = True
+        # Chiamata alla funzione da testare
+        result = get_bug_fix_commits_szz_issue()
+
+        # Verifica che il risultato sia una lista di commit che contengono correzioni di bug
+        self.assertEqual(result, [mock_commits[0], mock_commits[1], mock_commits[2]])
+
+    @patch('src.algorithm.main.is_fix_contained', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
+    def test_get_bug_fix_commits_szz_issue_false(self, mock_repo, mock_is_fix_contained):
+        # Configura il mock del repository
+        mock_commits = [
+            MagicMock(message="Fixing a bug"),
+            MagicMock(message="Adding a new feature"),
+            MagicMock(message="Fix: Another bug in the code")
+        ]
+        mock_repo.iter_commits.return_value = mock_commits
+        mock_is_fix_contained.return_value = False
+        # Chiamata alla funzione da testare
+        result = get_bug_fix_commits_szz_issue()
+
+        # Verifica che il risultato sia una lista di commit che contengono correzioni di bug
+        self.assertEqual(result, [])
 
     def test_generate_changes_dict_diff_output_not_empty(self):
         # Esempio di output del diff
@@ -126,7 +164,7 @@ index 67468fef9b5..00f1d5ebe98 100644
         changes_dict = generate_changes_dict(diff_output)
         self.assertEqual(changes_dict, expected_output)
 
-    @patch('SZZ_unisannio.src.algorithm.main.args', recent=False)
+    @patch('src.algorithm.main.args', recent=False)
     def test_get_candidate_commits_with_changes_no_recent_flag(self, mock_args):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -167,7 +205,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
 
     # il mock con side_effect=lambda x, y: True semplifica
     # il confronto facendo sì che restituisca sempre True, ovvero indicando che il primo commit è sempre meno recente del secondo.
-    @patch('SZZ_unisannio.src.algorithm.main.commit_is_more_recent', side_effect=lambda x, y: True)
+    @patch('src.algorithm.main.commit_is_more_recent', side_effect=lambda x, y: True)
     def test_get_candidate_commits_with_changes_and_recent_flag(self, mock_commit_is_more_recent):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -201,14 +239,14 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         changes_dict = {'third_party/xla/xla/service/gpu/buffer_sharing.cc': [1, 35]}
 
         # Imposta args.recent a True (come se fosse passato il flag -r)
-        with patch('SZZ_unisannio.src.algorithm.main.args', recent=True):
+        with patch('src.algorithm.main.args', recent=True):
             result = get_candidate_commits(blame_result, file_path, changes_dict)
 
         expected_result = {('85ac1c6ddc93d4f53ff5b2c5c1c7bac7a8a44030', 'Sergey Kozub')}
 
         self.assertEqual(result, expected_result)
 
-    @patch('SZZ_unisannio.src.algorithm.main.args', recent=False or True)
+    @patch('src.algorithm.main.args', recent=False or True)
     def test_get_candidate_commits_no_changes(self, mock_args):
         blame_result = ""
         file_path = 'some/file/path'
@@ -219,7 +257,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    @patch('SZZ_unisannio.src.algorithm.main.args', recent=False or True)
+    @patch('src.algorithm.main.args', recent=False or True)
     def test_get_candidate_commits_line_not_in_changes_dict(self, mock_args):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -257,7 +295,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    @patch('SZZ_unisannio.src.algorithm.main.args', recent=False or True)
+    @patch('src.algorithm.main.args', recent=False or True)
     def test_get_candidate_commits_partial_changes(self, mock_args):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -295,8 +333,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
-    @patch('SZZ_unisannio.src.algorithm.main.get_candidate_commits',
+    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.get_candidate_commits',
            side_effect=[
                {('commit1', 'author1')},  # Risultato per 'file1'
                {('commit2', 'author2')}  # Risultato per 'file2'
@@ -311,8 +349,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         expected_commits = {('commit1', 'author1'), ('commit2', 'author2')}
         self.assertEqual(result, expected_commits)
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
-    @patch('SZZ_unisannio.src.algorithm.main.get_candidate_commits',
+    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.get_candidate_commits',
            side_effect=[
                {('commit1', 'author1')},  # Risultato per 'file1'
                {('commit1', 'author1')}  # Risultato per 'file2'
@@ -327,8 +365,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         expected_commits = {('commit1', 'author1')}
         self.assertEqual(result, expected_commits)
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
-    @patch('SZZ_unisannio.src.algorithm.main.get_candidate_commits',
+    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.get_candidate_commits',
            side_effect=[
                {},  # Risultato per 'file1'
                {}  # Risultato per 'file2'
@@ -346,7 +384,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
     @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
     @patch('SZZ_unisannio.src.algorithm.main.generate_changes_dict', autospec=True)
     @patch('SZZ_unisannio.src.algorithm.main.get_all_candidate_commits', autospec=True)
-    def test_search_candidate_commit_szz_with_parent_commit(self, mock_get_all_candidate_commits, mock_generate_changes_dict, mock_repo):
+    def test_search_candidate_commit_szz_with_parent_commit(self, mock_get_all_candidate_commits,
+                                                            mock_generate_changes_dict, mock_repo):
         # Crea un mock per il bug_fix_commit
         bug_fix_commit = MagicMock()
         bug_fix_commit.parents = [MagicMock()]  # Assicurati che ci sia almeno un parent
@@ -370,9 +409,9 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         mock_get_all_candidate_commits.assert_called_with(bug_fix_commit.parents[0],
                                                           {'file1': [1, 2, 3], 'file2': [4, 5]})
 
-    @patch('SZZ_unisannio.src.algorithm.main.repo', autospec=True)
-    @patch('SZZ_unisannio.src.algorithm.main.generate_changes_dict', autospec=True)
-    @patch('SZZ_unisannio.src.algorithm.main.get_all_candidate_commits', autospec=True)
+    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.algorithm.main.generate_changes_dict', autospec=True)
+    @patch('src.algorithm.main.get_all_candidate_commits', autospec=True)
     def test_search_candidate_commit_szz_without_parent_commit(self, mock_get_all_candidate_commits,
                                                                mock_generate_changes_dict, mock_repo):
         bug_fix_commit = MagicMock()
@@ -427,7 +466,6 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
 
     @patch('builtins.print')  # Mock la funzione print built-in
     def test_print_candidate_commit_empty(self, mock_print):
-
         total_candidate_commits = {}
 
         # Esegui la funzione di test
@@ -442,9 +480,9 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che l'output effettivo sia uguale all'output desiderato
         self.assertEqual(captured_output, expected_output)
 
-    @patch('SZZ_unisannio.src.algorithm.main.get_bug_fix_commits_for_szz')
-    @patch('SZZ_unisannio.src.algorithm.main.search_candidate_commit_szz')
-    @patch('SZZ_unisannio.src.algorithm.main.print_candidate_commit')
+    @patch('src.algorithm.main.get_bug_fix_commits_for_szz')
+    @patch('src.algorithm.main.search_candidate_commit_szz')
+    @patch('src.algorithm.main.print_candidate_commit')
     def test_szz_function(self, mock_print, mock_search, mock_get_bug_fix_commits):
         # Configurare il comportamento del mock per ogni funzione
         mock_get_bug_fix_commits.return_value = ['commit1', 'commit2', 'commit3', 'commit4', 'commit5']
