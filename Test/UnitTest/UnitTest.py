@@ -135,6 +135,16 @@ class UnitTest(unittest.TestCase):
         # Verifica che il risultato sia una lista di commit che contengono correzioni di bug
         self.assertEqual(result, [])
 
+    @patch('builtins.open', mock_open(read_data='regex'))
+    def test_load_regex_config_success(self):
+        result = load_regex_config('fake_path')
+        self.assertEqual(result, 'regex')
+
+    @patch('builtins.open', side_effect=FileNotFoundError)
+    def test_load_regex_config_file_not_found(self, mock_open_file):
+        result = load_regex_config('nonexistent_path')
+        self.assertIsNone(result)
+
     def test_generate_changes_dict_diff_output_not_empty(self):
         # Esempio di output del diff
         diff_output = """ diff --git a/third_party/xla/xla/service/gpu/BUILD b/third_party/xla/xla/service/gpu/BUILD

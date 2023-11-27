@@ -4,6 +4,7 @@ from datetime import datetime
 import git
 import re
 
+
 def load_regex_config(config_path='../../regex_config.txt'):
     # Apre il file specificato e restituisce il contenuto come stringa, rimuovendo spazi bianchi in eccesso.
     try:
@@ -230,6 +231,7 @@ def szz_issue():
 
     print('\n\n\nThis is the list of every bug fix commits and the relative bug inducing commits')
     print_candidate_commit(suspect_commit_dict)
+
 
 args = None
 repo = None
