@@ -62,7 +62,7 @@ def generate_changes_dict(diff_output):
 
 
 def match_comment(line):
-    comment_pattern = re.compile(r'^\s*(#|//|<!--|/\*)|(?:.*?--!>|.*?\*/)\s*$')
+    comment_pattern = re.compile(r'^\s*(\'\'\'|"""|#|//|<!--|/\*)|(?:.*?--!>|.*?\*/|\'\'\'|""")\s*$')
 
     return comment_pattern.match(line[1:])  # Ignora il primo carattere perchè le linee iniziano per '-'
 

@@ -585,15 +585,15 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         result = match_comment(line)
         self.assertIsNotNone(result, "Expected a comment, but got None.")
 
-    #def test_match_multiline_single_quotes(self):
-    #    line = " '''This is a multiline\ncomment'''"
-    #    result = match_comment(line)
-    #    self.assertIsNotNone(result, "Expected a comment, but got None.")
+    def test_match_multiline_single_quotes(self):
+        line = " '''This is a multiline\ncomment'''"
+        result = match_comment(line)
+        self.assertIsNotNone(result, "Expected a comment, but got None.")
 
-    #def test_match_multiline_double_quotes(self):
-    #    line = ' """This is another\nmultiline comment"""'
-    #    result = match_comment(line)
-    #    self.assertIsNotNone(result, "Expected a comment, but got None.")
+    def test_match_multiline_double_quotes(self):
+        line = ' """This is another\nmultiline comment"""'
+        result = match_comment(line)
+        self.assertIsNotNone(result, "Expected a comment, but got None.")
 
     def test_match_comment_with_leading_spaces(self):
         line = "   # Comment with leading spaces"
