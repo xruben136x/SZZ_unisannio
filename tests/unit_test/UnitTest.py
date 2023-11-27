@@ -6,7 +6,7 @@ from src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dic
     get_bug_fix_commits_szz_issue, \
     search_candidate_commit_szz, \
     print_candidate_commit, szz, \
-    load_regex_config  # Assicurati di sostituire 'your_script' con il nome reale del tuo script
+    load_regex_config, commit_is_more_recent, szz_issue, extract_commit_by_timestamp  # Assicurati di sostituire 'your_script' con il nome reale del tuo script
 
 
 class UnitTest(unittest.TestCase):
@@ -510,6 +510,60 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che print_candidate_commit venga chiamato una volta
         mock_print.assert_called_once()
 
+    @patch('src.algorithm.main.repo')
+    def test_commit_is_more_recent_false(self, mock_repo):
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.committed_date = 1637878400
+
+        mock_commit2 = MagicMock()
+        mock_commit2.committed_date = 1638260400
+
+        # Configura il mock del repository
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        # Chiamata al metodo da testare
+        result = commit_is_more_recent('hash1', 'hash2')
+
+        # Verifica il risultato atteso
+        self.assertFalse(result)  # Il commit1 è meno recente di commit2
+
+    @patch('src.algorithm.main.repo')
+    def test_commit_is_more_recent_false_equal_timestamp(self, mock_repo):
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.committed_date = 1637878400
+
+        mock_commit2 = MagicMock()
+        mock_commit2.committed_date = 1637878400
+
+        # Configura il mock del repository
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        # Chiamata al metodo da testare
+        result = commit_is_more_recent('hash1', 'hash2')
+
+        # Verifica il risultato atteso
+        self.assertFalse(result)
+
+    @patch('src.algorithm.main.repo')
+    def test_commit_is_more_recent_true(self, mock_repo):
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.committed_date = 1647878400
+
+        mock_commit2 = MagicMock()
+        mock_commit2.committed_date = 1638260400
+
+        # Configura il mock del repository
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        # Chiamata al metodo da testare
+        result = commit_is_more_recent('hash1', 'hash2')
+
+        # Verifica il risultato atteso
+        self.assertTrue(result)  # Il commit1 è più recente di commit2
+
     def test_extract_issue_number_found(self):
         result = extract_issue_number("Fixes issue #42", r'(\d+)')
         self.assertEqual(result, 42)
@@ -586,6 +640,173 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         issue_pattern = re.compile(r'issue #(\d+)', re.IGNORECASE)
         result = is_fix_contained(commit_message, issue_pattern)
         self.assertTrue(result)
+
+    @patch('src.algorithm.main.repo')
+    def test_extract_commit_by_timestamp_scenario1(self, mock_repo):
+        #Entrambi i commit sono sospetti poichè precedenti al bug report
+
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.sha = 'commit1'
+        mock_commit1.committed_date = 1635544000
+        mock_commit1.author.name = 'author1'
+
+        mock_commit2 = MagicMock()
+        mock_commit2.sha = 'commit2'
+        mock_commit2.committed_date = 1634336000
+        mock_commit2.author.name = 'author2'
+
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        all_candidate_commits = [('commit1', 'author1'), ('commit2', 'author2')]
+        issue_opened_at_timestamp = '2021-11-01T00:00:00Z'  #1635724800
+
+        # Esegui la funzione di test
+        result = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at_timestamp)
+
+        # Verifica che i commit siano estratti correttamente
+        self.assertEqual(result, [('commit1', 'author1'), ('commit2', 'author2')])
+
+    @patch('src.algorithm.main.repo')
+    def test_extract_commit_by_timestamp_scenario2(self, mock_repo):
+        # Entrambi i commit non sono sospetti poichè successivi al bug report
+
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.sha = 'commit1'
+        mock_commit1.committed_date = 1639544000
+        mock_commit1.author.name = 'author1'
+
+        mock_commit2 = MagicMock()
+        mock_commit2.sha = 'commit2'
+        mock_commit2.committed_date = 1637336000
+        mock_commit2.author.name = 'author2'
+
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        all_candidate_commits = [('commit1', 'author1'), ('commit2', 'author2')]
+        issue_opened_at_timestamp = '2021-11-01T00:00:00Z'  # 1635724800
+
+        # Esegui la funzione di test
+        result = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at_timestamp)
+
+        # Verifica che i commit siano estratti correttamente
+        self.assertEqual(result, [])
+
+    @patch('src.algorithm.main.repo')
+    def test_extract_commit_by_timestamp_scenario3(self, mock_repo):
+        #Boundary Test
+
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.sha = 'commit1'
+        mock_commit1.committed_date = 1635724801 #maggiore di 1 rispetto al timestamp dell'issue
+        mock_commit1.author.name = 'author1'
+
+        mock_commit2 = MagicMock()
+        mock_commit2.sha = 'commit2'
+        mock_commit2.committed_date = 1635724799 #minore di 1 rispetto al timestamp dell'issue
+        mock_commit2.author.name = 'author2'
+
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        all_candidate_commits = [('commit1', 'author1'), ('commit2', 'author2')]
+        issue_opened_at_timestamp = '2021-11-01T00:00:00Z'  # 1635724800
+
+        # Esegui la funzione di test
+        result = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at_timestamp)
+
+        # Verifica che i commit siano estratti correttamente
+        self.assertEqual(result, [('commit2', 'author2')])
+
+    @patch('src.algorithm.main.repo')
+    def test_extract_commit_by_timestamp_scenario4(self, mock_repo):
+        # Timestamp dei commit uguali a quello realtivo all'issue
+
+        # Configura dati di esempio
+        mock_commit1 = MagicMock()
+        mock_commit1.sha = 'commit1'
+        mock_commit1.committed_date = 1635724800
+        mock_commit1.author.name = 'author1'
+
+        mock_commit2 = MagicMock()
+        mock_commit2.sha = 'commit2'
+        mock_commit2.committed_date = 1635724800
+        mock_commit2.author.name = 'author2'
+
+        mock_repo.commit.side_effect = [mock_commit1, mock_commit2]
+
+        all_candidate_commits = [('commit1', 'author1'), ('commit2', 'author2')]
+        issue_opened_at_timestamp = '2021-11-01T00:00:00Z'  # 1635724800
+
+        # Esegui la funzione di test
+        result = extract_commit_by_timestamp(all_candidate_commits, issue_opened_at_timestamp)
+
+        # Verifica che i commit siano estratti correttamente
+        self.assertEqual(result, [])
+
+    @patch('src.algorithm.main.issue_data', [{"number": 1, "created_at": "2022-01-01T00:00:00Z"}])
+    @patch('src.algorithm.main.get_bug_fix_commits_szz_issue')
+    @patch('src.algorithm.main.extract_issue_number')
+    @patch('src.algorithm.main.search_candidate_commit_szz')
+    @patch('src.algorithm.main.extract_commit_by_timestamp')
+    @patch('src.algorithm.main.print_candidate_commit')
+    def test_szz_issue_valid(self, mock_print, mock_extract_commit, mock_search_commit, mock_extract_issue, mock_get_commits):
+        # Configura dati di esempio
+        mock_bug_fix_commit1 = MagicMock()
+        mock_bug_fix_commit1.message = "Fixes #1"
+        mock_bug_fix_commit1.hexsha = 'commit1'
+        mock_bug_fix_commit1.created_at = '2022-01-01T00:00:00Z'
+
+        mock_bug_fix_commits = [mock_bug_fix_commit1]
+
+        mock_get_commits.return_value = mock_bug_fix_commits
+
+        # Caso in cui l'issue è presente
+        mock_extract_issue.return_value = 1
+        mock_search_commit.return_value = [('commit2', 'author2')]
+
+        issue_opened_at = '2023-10-30T00:00:00Z'  # timestamp 1635552000
+
+        # Chiamata al metodo da testare
+        szz_issue()
+
+        # Verifica che i metodi siano stati chiamati correttamente
+        mock_get_commits.assert_called_once()
+        mock_extract_issue.assert_called_once()
+        mock_search_commit.assert_called_once()
+        mock_extract_commit.assert_called_once()
+        mock_print.assert_called_once()
+
+    @patch('src.algorithm.main.issue_data', [])  # Lista vuota
+    @patch('src.algorithm.main.get_bug_fix_commits_szz_issue')
+    @patch('src.algorithm.main.extract_issue_number')
+    @patch('src.algorithm.main.search_candidate_commit_szz')
+    @patch('src.algorithm.main.extract_commit_by_timestamp')
+    @patch('src.algorithm.main.print_candidate_commit')
+    def test_szz_issue_not_valid(self, mock_print, mock_extract_commit, mock_search_commit, mock_extract_issue, mock_get_commits):
+        # Configura dati di esempio
+        mock_bug_fix_commit1 = MagicMock()
+        mock_bug_fix_commit1.message = "Fixes #1"
+        mock_bug_fix_commit1.hexsha = 'commit1'
+        mock_bug_fix_commit1.created_at = '2022-01-01T00:00:00Z'
+
+        mock_bug_fix_commits = [mock_bug_fix_commit1]
+
+        mock_get_commits.return_value = mock_bug_fix_commits
+
+        # Caso in cui l'issue non è presente
+        mock_extract_issue.return_value = None
+
+        # Chiamata al metodo da testare
+        szz_issue()
+
+        # Verifica che i metodi siano stati chiamati correttamente
+        mock_get_commits.assert_called_once()
+        mock_extract_issue.assert_called_once()
+        mock_search_commit.assert_not_called()  # Non dovrebbe essere chiamato senza un'issue valida
+        mock_extract_commit.assert_not_called()  # Non dovrebbe essere chiamato senza un'issue valida
+        mock_print.assert_called_once()
 
 
 if __name__ == '__main__':
