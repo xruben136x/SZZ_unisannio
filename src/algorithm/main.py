@@ -235,6 +235,7 @@ def szz_issue():
 
 args = None
 repo = None
+issue_pattern = None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Insert repository name""")
