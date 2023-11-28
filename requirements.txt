@@ -3,3 +3,4 @@ jupyter>=1.0.0
 argparse
 datetime
 pytest
+coverage
