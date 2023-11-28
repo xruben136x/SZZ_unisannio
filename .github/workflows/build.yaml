@@ -42,7 +42,7 @@ jobs:
           coverage report
           coverage html
       - name: Upload artifact
-        run: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v2
         with:
           name: htmlcov
           path: htmlcov
