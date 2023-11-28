@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch, call, mock_open
 import re
-from src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, \
+
+from src.main import get_bug_fix_commits_for_szz, generate_changes_dict, get_candidate_commits, \
     get_all_candidate_commits, extract_issue_number, match_comment, is_fix_contained, \
     get_bug_fix_commits_szz_issue, \
     search_candidate_commit_szz, \
@@ -11,7 +12,7 @@ from src.algorithm.main import get_bug_fix_commits_for_szz, generate_changes_dic
 
 class UnitTest(unittest.TestCase):
 
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_bug_and_fix(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -29,7 +30,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca i commit corretti
         self.assertEqual(bug_fix_commits, [mock_commits[0], mock_commits[2]])
 
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_bug_and_fixed(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -47,7 +48,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca i commit corretti
         self.assertEqual(bug_fix_commits, [mock_commits[0], mock_commits[2]])
 
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_fix_only(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -65,7 +66,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_bug_only(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -83,7 +84,7 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_for_szz_with_empty_message(self, mock_repo):
         # Crea alcuni commit mock con messaggi specifici per il testing
         mock_commits = [
@@ -101,8 +102,8 @@ class UnitTest(unittest.TestCase):
         # Verifica che la funzione restituisca una lista vuota
         self.assertEqual(bug_fix_commits, [])
 
-    @patch('src.algorithm.main.is_fix_contained', autospec=True)
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.is_fix_contained', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_szz_issue_true(self, mock_repo, mock_is_fix_contained):
         # Configura il mock del repository
         mock_commits = [
@@ -118,8 +119,8 @@ class UnitTest(unittest.TestCase):
         # Verifica che il risultato sia una lista di commit che contengono correzioni di bug
         self.assertEqual(result, [mock_commits[0], mock_commits[1], mock_commits[2]])
 
-    @patch('src.algorithm.main.is_fix_contained', autospec=True)
-    @patch('src.algorithm.main.repo', autospec=True)
+    @patch('src.main.is_fix_contained', autospec=True)
+    @patch('src.main.repo', autospec=True)
     def test_get_bug_fix_commits_szz_issue_false(self, mock_repo, mock_is_fix_contained):
         # Configura il mock del repository
         mock_commits = [
@@ -174,7 +175,7 @@ index 67468fef9b5..00f1d5ebe98 100644
         changes_dict = generate_changes_dict(diff_output)
         self.assertEqual(changes_dict, expected_output)
 
-    @patch('src.algorithm.main.args', recent=False)
+    @patch('src.main.args', recent=False)
     def test_get_candidate_commits_with_changes_no_recent_flag(self, mock_args):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -215,7 +216,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
 
     # il mock con side_effect=lambda x, y: True semplifica
     # il confronto facendo sì che restituisca sempre True, ovvero indicando che il primo commit è sempre meno recente del secondo.
-    @patch('src.algorithm.main.commit_is_more_recent', side_effect=lambda x, y: True)
+    @patch('src.main.commit_is_more_recent', side_effect=lambda x, y: True)
     def test_get_candidate_commits_with_changes_and_recent_flag(self, mock_commit_is_more_recent):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -249,14 +250,14 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         changes_dict = {'third_party/xla/xla/service/gpu/buffer_sharing.cc': [1, 35]}
 
         # Imposta args.recent a True (come se fosse passato il flag -r)
-        with patch('src.algorithm.main.args', recent=True):
+        with patch('src.main.args', recent=True):
             result = get_candidate_commits(blame_result, file_path, changes_dict)
 
         expected_result = {('85ac1c6ddc93d4f53ff5b2c5c1c7bac7a8a44030', 'Sergey Kozub')}
 
         self.assertEqual(result, expected_result)
 
-    @patch('src.algorithm.main.args', recent=False or True)
+    @patch('src.main.args', recent=False or True)
     def test_get_candidate_commits_no_changes(self, mock_args):
         blame_result = ""
         file_path = 'some/file/path'
@@ -267,7 +268,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    @patch('src.algorithm.main.args', recent=False or True)
+    @patch('src.main.args', recent=False or True)
     def test_get_candidate_commits_line_not_in_changes_dict(self, mock_args):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -305,7 +306,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    @patch('src.algorithm.main.args', recent=False or True)
+    @patch('src.main.args', recent=False or True)
     def test_get_candidate_commits_partial_changes(self, mock_args):
         blame_result = """
         f4529e80ab30a51207901b74b438980ac8b3ceaf 1 1 23
@@ -343,8 +344,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         commit_set = get_candidate_commits(blame_result, file_path, changes_dict)
         self.assertEqual(commit_set, expected_commits)
 
-    @patch('src.algorithm.main.repo', autospec=True)
-    @patch('src.algorithm.main.get_candidate_commits',
+    @patch('src.main.repo', autospec=True)
+    @patch('src.main.get_candidate_commits',
            side_effect=[
                {('commit1', 'author1')},  # Risultato per 'file1'
                {('commit2', 'author2')}  # Risultato per 'file2'
@@ -359,8 +360,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         expected_commits = {('commit1', 'author1'), ('commit2', 'author2')}
         self.assertEqual(result, expected_commits)
 
-    @patch('src.algorithm.main.repo', autospec=True)
-    @patch('src.algorithm.main.get_candidate_commits',
+    @patch('src.main.repo', autospec=True)
+    @patch('src.main.get_candidate_commits',
            side_effect=[
                {('commit1', 'author1')},  # Risultato per 'file1'
                {('commit1', 'author1')}  # Risultato per 'file2'
@@ -375,8 +376,8 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         expected_commits = {('commit1', 'author1')}
         self.assertEqual(result, expected_commits)
 
-    @patch('src.algorithm.main.repo', autospec=True)
-    @patch('src.algorithm.main.get_candidate_commits',
+    @patch('src.main.repo', autospec=True)
+    @patch('src.main.get_candidate_commits',
            side_effect=[
                {},  # Risultato per 'file1'
                {}  # Risultato per 'file2'
@@ -391,9 +392,9 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         expected_commits = set()
         self.assertEqual(result, expected_commits)
 
-    @patch('src.algorithm.main.repo', autospec=True)
-    @patch('src.algorithm.main.generate_changes_dict', autospec=True)
-    @patch('src.algorithm.main.get_all_candidate_commits', autospec=True)
+    @patch('src.main.repo', autospec=True)
+    @patch('src.main.generate_changes_dict', autospec=True)
+    @patch('src.main.get_all_candidate_commits', autospec=True)
     def test_search_candidate_commit_szz_with_parent_commit(self, mock_get_all_candidate_commits,
                                                             mock_generate_changes_dict, mock_repo):
         # Crea un mock per il bug_fix_commit
@@ -419,9 +420,9 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         mock_get_all_candidate_commits.assert_called_with(bug_fix_commit.parents[0],
                                                           {'file1': [1, 2, 3], 'file2': [4, 5]})
 
-    @patch('src.algorithm.main.repo', autospec=True)
-    @patch('src.algorithm.main.generate_changes_dict', autospec=True)
-    @patch('src.algorithm.main.get_all_candidate_commits', autospec=True)
+    @patch('src.main.repo', autospec=True)
+    @patch('src.main.generate_changes_dict', autospec=True)
+    @patch('src.main.get_all_candidate_commits', autospec=True)
     def test_search_candidate_commit_szz_without_parent_commit(self, mock_get_all_candidate_commits,
                                                                mock_generate_changes_dict, mock_repo):
         bug_fix_commit = MagicMock()
@@ -490,9 +491,9 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che l'output effettivo sia uguale all'output desiderato
         self.assertEqual(captured_output, expected_output)
 
-    @patch('src.algorithm.main.get_bug_fix_commits_for_szz')
-    @patch('src.algorithm.main.search_candidate_commit_szz')
-    @patch('src.algorithm.main.print_candidate_commit')
+    @patch('src.main.get_bug_fix_commits_for_szz')
+    @patch('src.main.search_candidate_commit_szz')
+    @patch('src.main.print_candidate_commit')
     def test_szz_function(self, mock_print, mock_search, mock_get_bug_fix_commits):
         # Configurare il comportamento del mock per ogni funzione
         mock_get_bug_fix_commits.return_value = ['commit1', 'commit2', 'commit3', 'commit4', 'commit5']
@@ -510,7 +511,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che print_candidate_commit venga chiamato una volta
         mock_print.assert_called_once()
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_commit_is_more_recent_false(self, mock_repo):
         # Configura dati di esempio
         mock_commit1 = MagicMock()
@@ -528,7 +529,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica il risultato atteso
         self.assertFalse(result)  # Il commit1 è meno recente di commit2
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_commit_is_more_recent_false_equal_timestamp(self, mock_repo):
         # Configura dati di esempio
         mock_commit1 = MagicMock()
@@ -546,7 +547,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica il risultato atteso
         self.assertFalse(result)
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_commit_is_more_recent_true(self, mock_repo):
         # Configura dati di esempio
         mock_commit1 = MagicMock()
@@ -641,7 +642,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         result = is_fix_contained(commit_message, issue_pattern)
         self.assertTrue(result)
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_extract_commit_by_timestamp_scenario1(self, mock_repo):
         #Entrambi i commit sono sospetti poichè precedenti al bug report
 
@@ -667,7 +668,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che i commit siano estratti correttamente
         self.assertEqual(result, [('commit1', 'author1'), ('commit2', 'author2')])
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_extract_commit_by_timestamp_scenario2(self, mock_repo):
         # Entrambi i commit non sono sospetti poichè successivi al bug report
 
@@ -693,7 +694,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che i commit siano estratti correttamente
         self.assertEqual(result, [])
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_extract_commit_by_timestamp_scenario3(self, mock_repo):
         #Boundary Test
 
@@ -719,7 +720,7 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che i commit siano estratti correttamente
         self.assertEqual(result, [('commit2', 'author2')])
 
-    @patch('src.algorithm.main.repo')
+    @patch('src.main.repo')
     def test_extract_commit_by_timestamp_scenario4(self, mock_repo):
         # Timestamp dei commit uguali a quello realtivo all'issue
 
@@ -745,12 +746,12 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         # Verifica che i commit siano estratti correttamente
         self.assertEqual(result, [])
 
-    @patch('src.algorithm.main.issue_data', [{"number": 1, "created_at": "2022-01-01T00:00:00Z"}])
-    @patch('src.algorithm.main.get_bug_fix_commits_szz_issue')
-    @patch('src.algorithm.main.extract_issue_number')
-    @patch('src.algorithm.main.search_candidate_commit_szz')
-    @patch('src.algorithm.main.extract_commit_by_timestamp')
-    @patch('src.algorithm.main.print_candidate_commit')
+    @patch('src.main.issue_data', [{"number": 1, "created_at": "2022-01-01T00:00:00Z"}])
+    @patch('src.main.get_bug_fix_commits_szz_issue')
+    @patch('src.main.extract_issue_number')
+    @patch('src.main.search_candidate_commit_szz')
+    @patch('src.main.extract_commit_by_timestamp')
+    @patch('src.main.print_candidate_commit')
     def test_szz_issue_valid(self, mock_print, mock_extract_commit, mock_search_commit, mock_extract_issue, mock_get_commits):
         # Configura dati di esempio
         mock_bug_fix_commit1 = MagicMock()
@@ -778,12 +779,12 @@ filename third_party/xla/xla/service/gpu/buffer_sharing.cc
         mock_extract_commit.assert_called_once()
         mock_print.assert_called_once()
 
-    @patch('src.algorithm.main.issue_data', [])  # Lista vuota
-    @patch('src.algorithm.main.get_bug_fix_commits_szz_issue')
-    @patch('src.algorithm.main.extract_issue_number')
-    @patch('src.algorithm.main.search_candidate_commit_szz')
-    @patch('src.algorithm.main.extract_commit_by_timestamp')
-    @patch('src.algorithm.main.print_candidate_commit')
+    @patch('src.main.issue_data', [])  # Lista vuota
+    @patch('src.main.get_bug_fix_commits_szz_issue')
+    @patch('src.main.extract_issue_number')
+    @patch('src.main.search_candidate_commit_szz')
+    @patch('src.main.extract_commit_by_timestamp')
+    @patch('src.main.print_candidate_commit')
     def test_szz_issue_not_valid(self, mock_print, mock_extract_commit, mock_search_commit, mock_extract_issue, mock_get_commits):
         # Configura dati di esempio
         mock_bug_fix_commit1 = MagicMock()

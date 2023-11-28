@@ -159,7 +159,8 @@ def search_candidate_commit_szz(bug_fix_commit):
 
 
 def extract_issue_number(commit_message, regex_pattern):
-    # Utilizza il pattern di espressione regolare per cercare il numero dell'issue nel messaggio del commit.
+    # Utilizza il pattern di espressione regolare per
+    # cercare il numero dell'issue nel messaggio del commit.
     pattern = re.compile(regex_pattern)
     match = pattern.search(commit_message)
     if match:
