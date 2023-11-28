@@ -5,11 +5,6 @@ import git
 import re
 
 
-def get_diff(commit_a, commit_b):
-    diff = repo.git.diff(commit_a.hexsha, commit_b.hexsha, '-U0', '--histogram')
-    return diff
-
-
 def load_regex_config(config_path='../../regex_config.txt'):
     # Apre il file specificato e restituisce il contenuto come stringa, rimuovendo spazi bianchi in eccesso.
     try:
@@ -67,7 +62,7 @@ def generate_changes_dict(diff_output):
 
 
 def match_comment(line):
-    comment_pattern = re.compile(r'^\s*(#|//|<!--|/\*)|(?:.*?--!>|.*?\*/)\s*$')
+    comment_pattern = re.compile(r'^\s*(\'\'\'|"""|#|//|<!--|/\*)|(?:.*?--!>|.*?\*/|\'\'\'|""")\s*$')
 
     return comment_pattern.match(line[1:])  # Ignora il primo carattere perchè le linee iniziano per '-'
 
@@ -150,7 +145,7 @@ def search_candidate_commit_szz(bug_fix_commit):
     # confronto
     if bug_fix_commit.parents is not None:
         parent_commit = bug_fix_commit.parents[0]
-        diff = get_diff(bug_fix_commit, parent_commit)
+        diff = repo.git.diff(bug_fix_commit.hexsha, parent_commit.hexsha, '-U0', '--histogram')
 
         # generiamo il dizionario che contiene come chiave i file cambiati e come valore i numeri di riga
         # modificati, ed in particolare le linee che dal commit parent sono state eliminate e sostituite col fix
@@ -237,6 +232,11 @@ def szz_issue():
     print('\n\n\nThis is the list of every bug fix commits and the relative bug inducing commits')
     print_candidate_commit(suspect_commit_dict)
 
+
+args = None
+repo = None
+issue_pattern = None
+issue_data = None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Insert repository name""")
