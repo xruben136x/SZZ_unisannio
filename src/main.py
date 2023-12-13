@@ -3,9 +3,10 @@ import json
 from datetime import datetime
 import git
 import re
+import os
 
 
-def load_regex_config(config_path='../../regex_config.txt'):
+def load_regex_config(config_path='../regex_config.txt'):
     # Apre il file specificato e restituisce il contenuto come stringa, rimuovendo spazi bianchi in eccesso.
     try:
         with open(config_path, 'r') as config_file:
@@ -244,25 +245,36 @@ if __name__ == '__main__':
     parser.add_argument('--repo-path', type=str, help="The absolute path to a local copy of the git repository from "
                                                       "where the git log is taken.")
 
-    # Aggiungi l'opzione -i e specifica il parametro --issue
     parser.add_argument('-i', '--issue', type=str, help="The absolute path to a local copy of a JSON file containing "
                                                         "the issue bug report of the repository")
 
-    # Aggiungi l'opzione -r e specifica il parametro --recent
     parser.add_argument('-r', '--recent', action='store_true',
                         help="Show only the most recent commit for each bug-fix commit")
 
     args = parser.parse_args()
-    path_to_repo = args.repo_path
-    repo = git.Repo(path_to_repo)
+
+    # Gestione degli errori per il percorso del repository
+    try:
+        path_to_repo = args.repo_path
+        repo = git.Repo(path_to_repo)
+    except git.exc.NoSuchPathError:
+        print(f"Error: Invalid Git repository path provided. Please check the path and try again.")
+        exit(1)
+
     issue_pattern_str = load_regex_config()
 
     if issue_pattern_str is not None:
         issue_pattern = re.compile(issue_pattern_str)
 
+        # Gestione degli errori per il file delle issue
         if args.issue:
+            issue_file_path = args.issue
+            if not os.path.isfile(issue_file_path):
+                print(f"Error: Issue file '{issue_file_path}' not found. Please check the file path and try again.")
+                exit(1)
+
             try:
-                with open(args.issue) as issue_path_file:
+                with open(issue_file_path) as issue_path_file:
                     issue_data = json.load(issue_path_file)
                 szz_issue()
             except json.JSONDecodeError as e:
